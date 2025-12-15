@@ -21,7 +21,7 @@ export default function CreateSlotPage() {
 }
 
 function AddSlot() {
-  const [facility, setFacility] = useState<string | number>('');
+  const [facility, setFacility] = useState<string | number | null>(null);
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
   const [startTime, setStartTime] = useState<Date | null>(null);

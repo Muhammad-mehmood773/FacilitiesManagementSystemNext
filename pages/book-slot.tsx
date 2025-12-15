@@ -24,8 +24,10 @@ export default function BookSlotPage() {
 }
 
 function BookSlot() {
-  const [facility, setFacility] = useState<string | number>('');
-  const [tableField, setTableField] = useState<string | number>('');
+  const [facility, setFacility] = useState<string | number | null>(null);
+
+  const [tableField, setTableField] = useState<string | number | null>(null);
+
   const [date, setDate] = useState<Date | null>(null);
 
   type OptionType = { label: string; value: string | number };
@@ -45,7 +47,8 @@ function BookSlot() {
   const { roleId } = useLayoutContext();
   const isAdmin = roleId === 'Super Admin';
 
-  const [selectedEmployee, setSelectedEmployee] = useState<string | number>('');
+  const [selectedEmployee, setSelectedEmployee] = useState<string | number | null>(null);
+
   const [employeeOptions, setEmployeeOptions] = useState<OptionType[]>([]);
   const [employeeLoading, setEmployeeLoading] = useState(false);
 
@@ -103,32 +106,33 @@ function BookSlot() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleFacilityChange = (value: string | number) => {
-    setFacility(value);
-    setErrors((prev) => ({ ...prev, facility: !value }));
+const handleFacilityChange = (value: string | number | null) => {
+  setFacility(value);
+  setErrors((prev) => ({ ...prev, facility: !value }));
 
-    setTableField('');
-    setTableOptions([]);
+  setTableField('');
+  setTableOptions([]);
 
-    if (!value) {
-      setSlots([]);
-      return;
-    }
+  if (!value) {
+    setSlots([]);
+    return;
+  }
 
-    setLoadingResources(true);
-    FacilityService.getFacilitiesResources(Number(value))
-      .then((res) => {
-        const tables = res.data || [];
-        const dropdown = [
-          { label: 'Select Table', value: '' },
-          ...tables.map((t) => ({ label: t.facilityResourceName, value: t.facilityResourceId })),
-        ];
-        setTableOptions(dropdown);
-      })
-      .finally(() => setLoadingResources(false));
+  setLoadingResources(true);
+  FacilityService.getFacilitiesResources(Number(value))
+    .then((res) => {
+      const tables = res.data || [];
+      const dropdown = [
+        { label: 'Select Table', value: '' },
+        ...tables.map((t) => ({ label: t.facilityResourceName, value: t.facilityResourceId })),
+      ];
+      setTableOptions(dropdown);
+    })
+    .finally(() => setLoadingResources(false));
 
-    if (date) loadSlots(value, date);
-  };
+  if (date && value) loadSlots(value, date);
+};
+
 
   const loadSlots = (facilityId = facility, selectedDate = date): Promise<FacilitySlot[]> => {
     if (!facilityId || !selectedDate) return Promise.resolve([] as FacilitySlot[]);
