@@ -72,7 +72,7 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async (ctx) => 
   const startDate = typeof ctx.query.startDate === 'string' ? ctx.query.startDate : '';
   const endDate = typeof ctx.query.endDate === 'string' ? ctx.query.endDate : '';
 
-  const employeeId = Number(auth.loginId); 
+  const employeeId = Number(auth.loginId);
 
 
 
@@ -141,7 +141,7 @@ function History({
   const { roleId } = useLayoutContext();
   const [history, setHistory] = useState<SlotItem[]>(initialHistory);
   const [currentPage, setCurrentPage] = useState(initialCurrentPage);
-const [totalPages, setTotalPages] = useState(initialTotalPages);
+  const [totalPages, setTotalPages] = useState(initialTotalPages);
 
   const router = useRouter();
 
@@ -186,41 +186,41 @@ const [totalPages, setTotalPages] = useState(initialTotalPages);
     document.title = 'History';
   }, []);
 
-const goToPage = (page: number) => {
-  if (page < 1 || page > totalPages) return;
-  fetchHistory(page); 
-};
+  const goToPage = (page: number) => {
+    if (page < 1 || page > totalPages) return;
+    fetchHistory(page);
+  };
 
 
 
   const fetchHistory = async (page = 1) => {
-  if (endDate < startDate) {
-    toast.error('End date must be same or greater than start date');
-    return;
-  }
+    if (endDate < startDate) {
+      toast.error('End date must be same or greater than start date');
+      return;
+    }
 
-  try {
-    const res = await FacilitySlotService.getHistory({
-      employeeId,
-      pageNumber: page,
-      pageSize: 48,
-      startDate,
-      endDate,
-    });
+    try {
+      const res = await FacilitySlotService.getHistory({
+        employeeId,
+        pageNumber: page,
+        pageSize: 48,
+        startDate,
+        endDate,
+      });
 
-    setHistory(res.data.data || []);
-    setCurrentPage(page);
-    setTotalPages(res.data.paginatedResponse?.totalPages || 1);
-  } catch (err) {
-    toast.error('Failed to fetch data');
-  }
-};
+      setHistory(res.data.data || []);
+      setCurrentPage(page);
+      setTotalPages(res.data.paginatedResponse?.totalPages || 1);
+    } catch (err) {
+      toast.error('Failed to fetch data');
+    }
+  };
 
 
 
-const applyFilter = () => {
-  fetchHistory(1);
-};
+  const applyFilter = () => {
+    fetchHistory(1);
+  };
 
 
   const getStatusClass = (status: string) => {
@@ -256,17 +256,26 @@ const applyFilter = () => {
     }
   };
 
-  const goToBookSlot = (slot: SlotItem) => {
-    const prefill = {
-      facilityName: slot.facilityName,
-      resourceName: slot.facilityResourceName,
-      slotId: slot.slotId,
-      slotDate: slot.slotDate,
-      startTime: slot.startTime,
-      endTime: slot.endTime,
-    };
-    router.push({ pathname: '/book-slot', query: { prefill: encodeURIComponent(JSON.stringify(prefill)) } });
+
+const goToBookSlot = (slot: SlotItem) => {  
+  const prefill = {  
+    slotId: slot.slotId,
+    slotDate: slot.slotDate,
+    startTime: slot.startTime,
+    endTime: slot.endTime,
+    facilityName: slot.facilityName,
+    resourceName: slot.facilityResourceName,
   };
+
+  router.push({
+    pathname: '/book-slot',
+    query: {
+      prefill: encodeURIComponent(JSON.stringify(prefill))
+    }
+  });
+};
+
+
 
   return (
     <div className="page-wrapper">

@@ -197,6 +197,8 @@ function BookSlot({
     }
   }, [initialDate, initialFacilityId, initialTableOptions]);
 
+
+
   const handleFacilityChange = (value: string | number | null) => {
     setFacility(value);
     setErrors((prev) => ({ ...prev, facility: !value }));
@@ -317,6 +319,9 @@ function BookSlot({
       setLoading(false);
     }
   };
+
+
+  
 
   return (
     <div className="container-fluid p-4 ">
