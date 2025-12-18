@@ -1,32 +1,44 @@
-import { useEffect } from 'react';
-import { useRouter } from 'next/router';
+import type { GetServerSideProps } from 'next';
 import { decryptLoginId } from '../utils/decrypt';
-import { useAuth } from '../context/useAuth';
+import { serializeCookie } from '../utils/cookies';
 
 export default function Redirect() {
-  const { setLoginId } = useAuth();
-  const router = useRouter();
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const encrypted = params.get('loginid');
-
-    if (!encrypted) {
-      localStorage.clear();
-      window.location.href = 'https://hr.astrikdigital.com';
-      return;
-    }
-
-    decryptLoginId(encrypted)
-      .then((decrypted: string) => {
-        setLoginId(decrypted);
-        router.push('/book-slot');
-      })
-      .catch(() => {
-        localStorage.clear();
-        window.location.href = 'https://hr.astrikdigital.com';
-      });
-  }, [router, setLoginId]);
-
-  return <div />;
+  return null;
 }
+
+export const getServerSideProps: GetServerSideProps = async (ctx) => {
+  const encrypted = typeof ctx.query.loginid === 'string' ? ctx.query.loginid : null;
+
+  if (!encrypted) {
+    ctx.res.setHeader('Set-Cookie', serializeCookie('loginId', '', { maxAge: 0, path: '/' }));
+    return {
+      redirect: {
+        destination: 'https://hr.astrikdigital.com',
+        permanent: false,
+      },
+    };
+  }
+
+  try {
+    const decrypted = await decryptLoginId(encrypted);
+    const loginId = decrypted?.trim();
+    if (!loginId) throw new Error('Empty loginId');
+
+    ctx.res.setHeader('Set-Cookie', serializeCookie('loginId', loginId, { maxAge: 60 * 60 * 24 * 7, path: '/' }));
+
+    return {
+      redirect: {
+        destination: '/book-slot',
+        permanent: false,
+      },
+    };
+  } catch {
+    ctx.res.setHeader('Set-Cookie', serializeCookie('loginId', '', { maxAge: 0, path: '/' }));
+    return {
+      redirect: {
+        destination: 'https://hr.astrikdigital.com',
+        permanent: false,
+      },
+    };
+  }
+};

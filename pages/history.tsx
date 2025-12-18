@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import type { GetServerSideProps } from 'next';
 import MainLayout from '../layouts/MainLayout';
 import { useLayoutContext } from '../context/LayoutContext';
 import { FacilitySlotService } from '../services/FacilitySlot';
@@ -6,22 +7,142 @@ import type { SlotItem } from '../interfaces/slotHistoryResponse';
 import { useRouter } from 'next/router';
 import { toast } from 'react-toastify';
 import type { CancelSlotPayload } from '../interfaces/SlotCancel';
+import { requireEmployee } from '../utils/ssrAuth';
+import { createServerApi } from '../api/serverApi';
+import type { SlotHistoryResponse } from '../interfaces/slotHistoryResponse';
 
-export default function HistoryPage() {
+type PageProps = {
+  userName: string;
+  userPhoto: string;
+  roleId: string;
+  history: SlotItem[];
+  currentPage: number;
+  totalPages: number;
+  startDate: string;
+  endDate: string;
+  requestPayload: {
+    pageNumber: number;
+    pageSize: number;
+    employeeId: number;
+    startDate: string;
+    endDate: string;
+  };
+};
+
+export default function HistoryPage({ userName, userPhoto, roleId, history, currentPage, totalPages, startDate, endDate, requestPayload }: PageProps) {
   return (
-    <MainLayout>
-      <History />
+    <MainLayout userName={userName} userPhoto={userPhoto} roleId={roleId}>
+      <History
+        initialHistory={history}
+        initialCurrentPage={currentPage}
+        initialTotalPages={totalPages}
+        initialStartDate={startDate}
+        initialEndDate={endDate}
+        employeeId={requestPayload.employeeId}
+      />
     </MainLayout>
+
+
   );
 }
 
-function History() {
-  const { roleId } = useLayoutContext();
-  const [history, setHistory] = useState<SlotItem[]>([]);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const employeeId = useMemo(() => (typeof window !== 'undefined' ? localStorage.getItem('loginId') || '' : ''), []);
+export const getServerSideProps: GetServerSideProps<PageProps> = async (ctx) => {
+  const auth = await requireEmployee(ctx, { allowedRoleIds: [1, 2] });
+  if (auth.kind === 'redirect') {
+    return {
+      redirect: {
+        destination: auth.destination,
+        permanent: false,
+      },
+    };
+  }
+
   const pageSize = 48;
+
+
+
+  const pageRaw =
+    typeof ctx.query.pageNumber === 'string'
+      ? ctx.query.pageNumber
+      : undefined;
+
+  const currentPage = Math.max(1, Number(pageRaw || '1') || 1);
+  const pageNumber = currentPage;
+
+  const startDate = typeof ctx.query.startDate === 'string' ? ctx.query.startDate : '';
+  const endDate = typeof ctx.query.endDate === 'string' ? ctx.query.endDate : '';
+
+  const employeeId = Number(auth.loginId); 
+
+
+
+  const requestPayload: PageProps['requestPayload'] = {
+    pageNumber,
+    pageSize,
+    employeeId,
+    startDate,
+    endDate,
+  };
+
+  let sorted: PageProps['history'] = [];
+  let totalPages = 1;
+
+  try {
+    debugger
+    const api = createServerApi(auth.loginId);
+    const historyRes = await api.get<SlotHistoryResponse>('FacilitySlot/get-all-facility-slot', {
+      params: requestPayload,
+    });
+
+    const list = Array.isArray(historyRes.data?.data) ? historyRes.data.data : [];
+    sorted = list.slice().sort((a, b) => {
+      const da = new Date(a.slotDate).getTime();
+      const db = new Date(b.slotDate).getTime();
+      if (da !== db) return da - db;
+      return (a.startTime || '').localeCompare(b.startTime || '');
+    });
+
+    totalPages = historyRes.data?.paginatedResponse?.totalPages || 1;
+  } catch {
+    sorted = [];
+    totalPages = 1;
+  }
+
+  return {
+    props: {
+      userName: auth.employee.fullName,
+      userPhoto: auth.employee.employeePhoto,
+      roleId: auth.employee.facilityRoleName,
+      history: sorted,
+      currentPage,
+      totalPages,
+      startDate,
+      endDate,
+      requestPayload,
+    },
+  };
+};
+
+function History({
+  initialHistory,
+  initialCurrentPage,
+  initialTotalPages,
+  initialStartDate,
+  initialEndDate,
+  employeeId,
+}: {
+  initialHistory: SlotItem[];
+  initialCurrentPage: number;
+  initialTotalPages: number;
+  initialStartDate: string;
+  initialEndDate: string;
+  employeeId: number;
+}) {
+  const { roleId } = useLayoutContext();
+  const [history, setHistory] = useState<SlotItem[]>(initialHistory);
+  const [currentPage, setCurrentPage] = useState(initialCurrentPage);
+const [totalPages, setTotalPages] = useState(initialTotalPages);
+
   const router = useRouter();
 
   const now = new Date();
@@ -29,8 +150,8 @@ function History() {
   const mm = String(now.getMonth() + 1).padStart(2, '0');
   const dd = String(now.getDate()).padStart(2, '0');
   const today = `${yyyy}-${mm}-${dd}`;
-  const [startDate, setStartDate] = useState(today);
-  const [endDate, setEndDate] = useState(today);
+  const [startDate, setStartDate] = useState(initialStartDate || today);
+  const [endDate, setEndDate] = useState(initialEndDate || today);
 
   const formatTime = (time: string | undefined) => {
     if (!time) return '';
@@ -41,38 +162,6 @@ function History() {
     const hour12 = hours % 12 === 0 ? 12 : hours % 12;
     return `${hour12}:${String(minutes).padStart(2, '0')} ${suffix}`;
   };
-
-  const loadData = useCallback(
-    (page: number) => {
-      const filters = {
-        pageNumber: page,
-        pageSize,
-        employeeId: employeeId,
-        startDate: startDate || today,
-        endDate: endDate || today,
-      };
-
-      FacilitySlotService.getHistory(filters)
-        .then((res) => {
-          const list = Array.isArray(res.data.data) ? res.data.data : [];
-          if (list.length === 0) {
-            setHistory([]);
-            setTotalPages(1);
-            return;
-          }
-          const sorted = list.slice().sort((a, b) => {
-            const da = new Date(a.slotDate).getTime();
-            const db = new Date(b.slotDate).getTime();
-            if (da !== db) return da - db;
-            return (a.startTime || '').localeCompare(b.startTime || '');
-          });
-          setHistory(sorted);
-          setTotalPages(res.data.paginatedResponse.totalPages);
-        })
-        .catch(console.error);
-    },
-    [employeeId, pageSize, startDate, endDate, today]
-  );
 
   const getSlotStartDateTime = (slot: SlotItem) => new Date(`${slot.slotDate}T${slot.startTime}`);
 
@@ -95,12 +184,44 @@ function History() {
 
   useEffect(() => {
     document.title = 'History';
-    loadData(currentPage);
-  }, [currentPage, loadData]);
+  }, []);
 
-  const goToPage = (page: number) => {
-    if (page >= 1 && page <= totalPages) setCurrentPage(page);
-  };
+const goToPage = (page: number) => {
+  if (page < 1 || page > totalPages) return;
+  fetchHistory(page); 
+};
+
+
+
+  const fetchHistory = async (page = 1) => {
+  if (endDate < startDate) {
+    toast.error('End date must be same or greater than start date');
+    return;
+  }
+
+  try {
+    const res = await FacilitySlotService.getHistory({
+      employeeId,
+      pageNumber: page,
+      pageSize: 48,
+      startDate,
+      endDate,
+    });
+
+    setHistory(res.data.data || []);
+    setCurrentPage(page);
+    setTotalPages(res.data.paginatedResponse?.totalPages || 1);
+  } catch (err) {
+    toast.error('Failed to fetch data');
+  }
+};
+
+
+
+const applyFilter = () => {
+  fetchHistory(1);
+};
+
 
   const getStatusClass = (status: string) => {
     switch (status) {
@@ -125,7 +246,7 @@ function History() {
       const res = await FacilitySlotService.cancelSlots(payload);
       if (res.success) {
         toast.success('Slot cancelled successfully!');
-        loadData(currentPage);
+        router.replace(router.asPath);
       } else {
         alert(res.message || 'Failed to cancel slot');
       }
@@ -189,15 +310,7 @@ function History() {
                   <div>
                     <button
                       className="btn btn-primary"
-                      onClick={() => {
-                        if (endDate < startDate) {
-                          toast.error('End date must be same or greater than start date');
-                          return;
-                        }
-                        setHistory([]);
-                        setCurrentPage(1);
-                        loadData(1);
-                      }}
+                      onClick={applyFilter}
                     >
                       Apply Filter
                     </button>

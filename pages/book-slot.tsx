@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import type { GetServerSideProps } from 'next';
 import { useRouter } from 'next/router';
 import MainLayout from '../layouts/MainLayout';
 import { FacilityService } from '../services/FacilityService';
@@ -14,31 +15,142 @@ import type { BookingPayload } from '../interfaces/slotBookingRequest';
 import { toast } from 'react-toastify';
 import { FacilitySlotService } from '../services/FacilitySlot';
 import { useLayoutContext } from '../context/LayoutContext';
+import { requireEmployee } from '../utils/ssrAuth';
+import { createServerApi } from '../api/serverApi';
+import type { ApiResponse } from '../interfaces/employeeResponse';
+import type { Facility } from '../interfaces/facilityResponse';
+import type { FacilityResource } from '../interfaces/facilityResourceResponse';
+import { getCookieValue } from '../utils/cookies';
 
-export default function BookSlotPage() {
+type OptionType = { label: string; value: string | number };
+
+type PageProps = {
+  userName: string;
+  userPhoto: string;
+  roleId: string;
+  facilityOptions: OptionType[];
+  tableOptions: OptionType[];
+  slots: FacilitySlot[];
+  selectedFacilityId: number | null;
+  selectedDate: string;
+};
+
+export default function BookSlotPage({
+  userName,
+  userPhoto,
+  roleId,
+  facilityOptions,
+  tableOptions,
+  slots,
+  selectedFacilityId,
+  selectedDate,
+}: PageProps) {
   return (
-    <MainLayout>
-      <BookSlot />
+    <MainLayout userName={userName} userPhoto={userPhoto} roleId={roleId}>
+      <BookSlot
+        initialFacilityOptions={facilityOptions}
+        initialTableOptions={tableOptions}
+        initialSlots={slots}
+        initialFacilityId={selectedFacilityId}
+        initialDate={selectedDate}
+      />
     </MainLayout>
   );
 }
 
-function BookSlot() {
+export const getServerSideProps: GetServerSideProps<PageProps> = async (ctx) => {
+  const auth = await requireEmployee(ctx, { allowedRoleIds: [1, 2] });
+  if (auth.kind === 'redirect') {
+    return {
+      redirect: {
+        destination: auth.destination,
+        permanent: false,
+      },
+    };
+  }
+
+  const api = createServerApi(auth.loginId);
+  const facilitiesRes = await api.get<ApiResponse<Facility[]>>('/Facility/get-all-facilities');
+  const facilities = facilitiesRes.data?.data || [];
+
+  const facilityOptions: OptionType[] = facilities.map((f) => ({ label: f.facilityName, value: f.facilityId }));
+
+  const facilityIdRaw = typeof ctx.query.facilityId === 'string' ? ctx.query.facilityId : undefined;
+  const selectedFacilityId = Number(facilityIdRaw || facilities[0]?.facilityId || 0) || null;
+
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const dateRaw = typeof ctx.query.date === 'string' ? ctx.query.date : undefined;
+  const selectedDate = dateRaw || today;
+
+  let tableOptions: OptionType[] = [];
+  let slots: FacilitySlot[] = [];
+
+  if (selectedFacilityId != null) {
+    try {
+      const resourcesRes = await api.get<ApiResponse<FacilityResource[]>>(
+        `/Facility/get-facility-resources?facilityId=${encodeURIComponent(String(selectedFacilityId))}`
+      );
+      const resources = resourcesRes.data?.data || [];
+      tableOptions = resources.map((r) => ({ label: r.facilityResourceName, value: r.facilityResourceId }));
+
+      const resourceId = tableOptions[0]?.value;
+      if (typeof resourceId === 'number') {
+        try {
+          const slotsRes = await api.get<ApiResponse<FacilitySlot[]>>(
+            `FacilitySlot/get-all-available-slots?facilityResourceId=${encodeURIComponent(String(resourceId))}&date=${encodeURIComponent(selectedDate)}`
+          );
+          slots = slotsRes.data?.data || [];
+        } catch {
+          slots = [];
+        }
+      }
+    } catch {
+      tableOptions = [];
+      slots = [];
+    }
+  }
+
+  return {
+    props: {
+      userName: auth.employee.fullName,
+      userPhoto: auth.employee.employeePhoto,
+      roleId: auth.employee.facilityRoleName,
+      facilityOptions,
+      tableOptions,
+      slots,
+      selectedFacilityId,
+      selectedDate,
+    },
+  };
+};
+
+function BookSlot({
+  initialFacilityOptions,
+  initialTableOptions,
+  initialSlots,
+  initialFacilityId,
+  initialDate,
+}: {
+  initialFacilityOptions: OptionType[];
+  initialTableOptions: OptionType[];
+  initialSlots: FacilitySlot[];
+  initialFacilityId: number | null;
+  initialDate: string;
+}) {
   const [facility, setFacility] = useState<string | number | null>(null);
 
   const [tableField, setTableField] = useState<string | number | null>(null);
 
   const [date, setDate] = useState<Date | null>(null);
 
-  type OptionType = { label: string; value: string | number };
+  const [facilityOptions] = useState<OptionType[]>(initialFacilityOptions);
+  const [tableOptions, setTableOptions] = useState<OptionType[]>(initialTableOptions);
 
-  const [facilityOptions, setFacilityOptions] = useState<OptionType[]>([]);
-  const [tableOptions, setTableOptions] = useState<OptionType[]>([]);
+  const [loadingFacilities] = useState(false);
+  const [loadingResources] = useState(false);
 
-  const [loadingFacilities, setLoadingFacilities] = useState(true);
-  const [loadingResources, setLoadingResources] = useState(false);
-
-  const [slots, setSlots] = useState<FacilitySlot[]>([]);
+  const [slots, setSlots] = useState<FacilitySlot[]>(initialSlots);
   const [loadingSlots, setLoadingSlots] = useState(false);
 
   const [bookedSlots, setBookedSlots] = useState<number[]>([]);
@@ -73,65 +185,33 @@ function BookSlot() {
   }, [router.query.prefill]);
 
   useEffect(() => {
-    setLoadingFacilities(true);
     document.title = 'Book Slot';
-    FacilityService.getFacilities()
-      .then((res) => {
-        const slots = res.data || [];
-        const dropdown = slots.map((f) => ({ label: f.facilityName, value: f.facilityId }));
-
-        setFacilityOptions(dropdown);
-        const defaultFacility = dropdown[0];
-        if (defaultFacility) {
-          setFacility(defaultFacility.value);
-          setLoadingResources(true);
-          FacilityService.getFacilitiesResources(Number(defaultFacility.value))
-            .then((res2) => {
-              const facilities = res2.data || [];
-              const tableDropdown = facilities.map((t) => ({
-                label: t.facilityResourceName,
-                value: t.facilityResourceId,
-              }));
-              setTableOptions(tableDropdown);
-              const defaultTable = tableDropdown[0];
-              if (defaultTable) setTableField(defaultTable.value);
-            })
-            .finally(() => setLoadingResources(false));
-        }
-        const today = new Date();
-        setDate(today);
-        if (defaultFacility) loadSlots(defaultFacility.value, today);
-      })
-      .finally(() => setLoadingFacilities(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-const handleFacilityChange = (value: string | number | null) => {
-  setFacility(value);
-  setErrors((prev) => ({ ...prev, facility: !value }));
+  useEffect(() => {
+    if (initialFacilityId != null) setFacility(initialFacilityId);
+    if (initialTableOptions[0]) setTableField(initialTableOptions[0].value);
+    if (initialDate) {
+      const d = new Date(initialDate);
+      if (!Number.isNaN(d.getTime())) setDate(d);
+    }
+  }, [initialDate, initialFacilityId, initialTableOptions]);
 
-  setTableField('');
-  setTableOptions([]);
+  const handleFacilityChange = (value: string | number | null) => {
+    setFacility(value);
+    setErrors((prev) => ({ ...prev, facility: !value }));
 
-  if (!value) {
-    setSlots([]);
-    return;
-  }
+    if (!value) return;
 
-  setLoadingResources(true);
-  FacilityService.getFacilitiesResources(Number(value))
-    .then((res) => {
-      const tables = res.data || [];
-      const dropdown = [
-        { label: 'Select Table', value: '' },
-        ...tables.map((t) => ({ label: t.facilityResourceName, value: t.facilityResourceId })),
-      ];
-      setTableOptions(dropdown);
-    })
-    .finally(() => setLoadingResources(false));
+    const dateStr = date
+      ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+      : initialDate;
 
-  if (date && value) loadSlots(value, date);
-};
+    router.push({ pathname: '/book-slot', query: { facilityId: value, date: dateStr } });
+
+    loadSlots(value, date);
+  };
+
 
 
   const loadSlots = (facilityId = facility, selectedDate = date): Promise<FacilitySlot[]> => {
@@ -220,7 +300,7 @@ const handleFacilityChange = (value: string | number | null) => {
     try {
       const payload: BookingPayload = {
         slotId: slots[selectedSlotIndex!].slotId,
-        employeeId: isAdmin ? Number(selectedEmployee) : Number(localStorage.getItem('loginId')),
+        employeeId: isAdmin ? Number(selectedEmployee) : Number(getCookieValue(document.cookie, 'loginId')),
       };
 
       await FacilityService.createBookingSlot(payload);
@@ -285,11 +365,30 @@ const handleFacilityChange = (value: string | number | null) => {
                   onChange={(selectedDate) => {
                     setDate(selectedDate);
                     setErrors((prev) => ({ ...prev, date: !selectedDate }));
-                    if (selectedDate) loadSlots(facility, selectedDate);
+                    if (!selectedDate) return;
+
+                    const dateStr =
+                      selectedDate.getFullYear() +
+                      '-' +
+                      String(selectedDate.getMonth() + 1).padStart(2, '0') +
+                      '-' +
+                      String(selectedDate.getDate()).padStart(2, '0');
+
+                    if (facility) {
+                      router.push({ pathname: '/book-slot', query: { facilityId: facility, date: dateStr } });
+                    } else {
+                      router.push({ pathname: '/book-slot', query: { date: dateStr } });
+                    }
+
+                    loadSlots(facility, selectedDate).catch((err) => {
+                      console.error('Failed to load slots:', err);
+                      setSlots([]);
+                    });
                   }}
                   error={errors.date}
                   disablePastDates={true}
                 />
+
               </div>
               {isAdmin && (
                 <div className="mb-3">

@@ -1,13 +1,17 @@
-import { useEffect } from 'react';
-import { useRouter } from 'next/router';
+import type { GetServerSideProps } from 'next';
 
 export default function Home() {
-  const router = useRouter();
-  useEffect(() => {
-    router.replace('/book-slot');
-  }, [router]);
   return null;
 }
+
+export const getServerSideProps: GetServerSideProps = async () => {
+  return {
+    redirect: {
+      destination: '/book-slot',
+      permanent: false,
+    },
+  };
+};
 
 
 

@@ -1,4 +1,5 @@
 import { createContext, useState, type ReactNode, useEffect } from 'react';
+import { getCookieValue, serializeCookie } from '../utils/cookies';
 
 export type AuthContextType = {
   loginId: string | null;
@@ -13,21 +14,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      setLoginIdState(localStorage.getItem('loginId'));
+      setLoginIdState(getCookieValue(document.cookie, 'loginId'));
     }
   }, []);
 
   const setLoginId = (id: string) => {
     setLoginIdState(id);
     if (typeof window !== 'undefined') {
-      localStorage.setItem('loginId', id);
+      document.cookie = serializeCookie('loginId', id, { maxAge: 60 * 60 * 24 * 7, path: '/' });
     }
   };
 
   const logout = () => {
     setLoginIdState(null);
     if (typeof window !== 'undefined') {
-      localStorage.removeItem('loginId');
+      document.cookie = serializeCookie('loginId', '', { maxAge: 0, path: '/' });
     }
   };
 

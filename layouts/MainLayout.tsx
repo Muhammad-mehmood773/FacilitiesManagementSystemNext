@@ -1,48 +1,15 @@
-import React, { useEffect, useState, type PropsWithChildren } from 'react';
-import { useRouter } from 'next/router';
-import { FacilityEmployeeService } from '../services/FacilityEmployeeService';
+import React, { type PropsWithChildren } from 'react';
 import Sidebar from '../components/SideBar';
 import Header from '../components/Header';
 import { LayoutContext } from '../context/LayoutContext';
 
-const MainLayout: React.FC<PropsWithChildren> = ({ children }) => {
-  const [userName, setUserName] = useState('');
-  const [userPhoto, setUserPhoto] = useState('');
-  const [roleId, setRoleName] = useState('');
+type MainLayoutProps = PropsWithChildren<{
+  userName: string;
+  userPhoto: string;
+  roleId: string;
+}>;
 
-  const router = useRouter();
-
-  useEffect(() => {
-    const employeeId = typeof window !== 'undefined' ? localStorage.getItem('loginId') : null;
-
-    if (!employeeId) {
-      router.push('/unauthorized');
-      return;
-    }
-
-    FacilityEmployeeService.getEmployeeById(Number(employeeId))
-      .then((res) => {
-        const response = res?.data;
-
-        if (!response?.success || !response?.data) {
-          router.push('/unauthorized');
-          return;
-        }
-
-        const data = response.data;
-
-        setUserName(data.fullName);
-        setUserPhoto(data.employeePhoto);
-        setRoleName(data.facilityRoleName);
-
-        if (data.facilityRoleId !== 1 && data.facilityRoleId !== 2) {
-          router.push('/unauthorized');
-        }
-      })
-      .catch(() => {
-        router.push('/unauthorized');
-      });
-  }, [router]);
+const MainLayout: React.FC<MainLayoutProps> = ({ children, userName, userPhoto, roleId }) => {
 
   return (
     <section className="dashboard-sec" style={{ background: '#f1f4fa' }}>

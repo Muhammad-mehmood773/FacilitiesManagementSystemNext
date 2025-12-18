@@ -6,7 +6,12 @@ export async function decryptLoginId(encryptedBase64: string): Promise<string> {
   const ivLength = 16;
 
   const decoded = decodeURIComponent(encryptedBase64);
-  const encryptedBytes = Uint8Array.from(atob(decoded), (c) => c.charCodeAt(0));
+  const encryptedBytes = (() => {
+    if (typeof atob === 'function') {
+      return Uint8Array.from(atob(decoded), (c) => c.charCodeAt(0));
+    }
+    return new Uint8Array(Buffer.from(decoded, 'base64'));
+  })();
 
   const baseKeyForKey = await crypto.subtle.importKey(
     'raw',

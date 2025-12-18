@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { getCookieValue } from '../utils/cookies';
 
 const api = axios.create({
   baseURL: 'https://facilities.astrikdigital.com/api/',
@@ -9,7 +10,7 @@ const api = axios.create({
 
 api.interceptors.request.use((config) => {
   if (typeof window !== 'undefined') {
-    const loginId = localStorage.getItem('loginId');
+    const loginId = getCookieValue(document.cookie, 'loginId');
     if (loginId) {
       (config.headers as any)['LoginId'] = loginId;
     }

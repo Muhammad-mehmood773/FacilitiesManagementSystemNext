@@ -5,22 +5,64 @@ import DateInput from '../components/DateInput';
 import TimeInput from '../components/TimeInput';
 import SelectInput from '../components/SelectInput';
 import Button from '../components/Button';
-import { FacilityService } from '../services/FacilityService';
 import type { Facility } from '../interfaces/facilityResponse';
 import { toast } from 'react-toastify';
 import { useRouter } from 'next/router';
 import type { FacilitySlotRequest } from '../interfaces/facilitySlotRequest';
 import { FacilitySlotService } from '../services/FacilitySlot';
+import type { GetServerSideProps } from 'next';
+import { requireEmployee } from '../utils/ssrAuth';
+import { createServerApi } from '../api/serverApi';
+import type { ApiResponse } from '../interfaces/employeeResponse';
 
-export default function CreateSlotPage() {
+type FacilityOption = { label: string; value: number | string };
+
+type PageProps = {
+  userName: string;
+  userPhoto: string;
+  roleId: string;
+  facilityOptions: FacilityOption[];
+};
+
+export default function CreateSlotPage({ userName, userPhoto, roleId, facilityOptions }: PageProps) {
   return (
-    <MainLayout>
-      <AddSlot />
+    <MainLayout userName={userName} userPhoto={userPhoto} roleId={roleId}>
+      <AddSlot facilityOptions={facilityOptions} />
     </MainLayout>
   );
 }
 
-function AddSlot() {
+export const getServerSideProps: GetServerSideProps<PageProps> = async (ctx) => {
+  const auth = await requireEmployee(ctx, { allowedRoleIds: [1, 2] });
+  if (auth.kind === 'redirect') {
+    return {
+      redirect: {
+        destination: auth.destination,
+        permanent: false,
+      },
+    };
+  }
+
+  const api = createServerApi(auth.loginId);
+  const facilitiesRes = await api.get<ApiResponse<Facility[]>>('/Facility/get-all-facilities');
+  const facilities = facilitiesRes.data?.data || [];
+
+  const options: FacilityOption[] = [
+    { label: 'Select Facility', value: '' },
+    ...facilities.map((f) => ({ label: f.facilityName, value: f.facilityId })),
+  ];
+
+  return {
+    props: {
+      userName: auth.employee.fullName,
+      userPhoto: auth.employee.employeePhoto,
+      roleId: auth.employee.facilityRoleName,
+      facilityOptions: options,
+    },
+  };
+};
+
+function AddSlot({ facilityOptions }: { facilityOptions: FacilityOption[] }) {
   const [facility, setFacility] = useState<string | number | null>(null);
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
@@ -29,9 +71,7 @@ function AddSlot() {
   const [loading, setLoading] = useState(false);
   const [includeWeekend, setIncludeWeekend] = useState(false);
 
-  const [facilityOptions, setFacilityOptions] = useState<{ label: string; value: number | string }[]>([
-    { label: 'Select Facility', value: '' },
-  ]);
+  const [facilityOptionsState] = useState<FacilityOption[]>(facilityOptions);
 
   const router = useRouter();
 
@@ -52,18 +92,6 @@ function AddSlot() {
 
   useEffect(() => {
     document.title = 'Create Slot';
-    FacilityService.getFacilities()
-      .then((res) => {
-        const facilities = res.data || [];
-        const options = [
-          { label: 'Select Facility', value: '' },
-          ...facilities.map((f: Facility) => ({ label: f.facilityName, value: f.facilityId })),
-        ];
-        setFacilityOptions(options);
-      })
-      .catch((err) => {
-        console.error('Failed to load facilities', err);
-      });
   }, []);
 
   const handleSubmit = async () => {
@@ -159,7 +187,7 @@ function AddSlot() {
                 label="Select Facility"
                 value={facility}
                 required
-                options={facilityOptions}
+                options={facilityOptionsState}
                 onChange={(value) => {
                   setFacility(value);
                   setErrors((prev) => ({ ...prev, facility: value === '' }));
