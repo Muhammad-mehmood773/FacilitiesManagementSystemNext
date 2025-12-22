@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 type SlotChipProps = {
   title: string;
@@ -32,6 +32,15 @@ const SlotChip: React.FC<SlotChipProps> = ({
     return 'calc(25% - 12px)';
   };
 
+  const [responsiveWidth, setResponsiveWidth] = useState<string>('calc(25% - 12px)');
+
+  useEffect(() => {
+    const update = () => setResponsiveWidth(getResponsiveWidth());
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
+
   const formatTime12 = (time24: string) => {
     const [hourStr, minuteStr] = time24.split(':');
     let hour = parseInt(hourStr, 10);
@@ -55,7 +64,7 @@ const SlotChip: React.FC<SlotChipProps> = ({
     margin: '6px',
     fontSize: '12px',
     fontWeight: 600,
-    width: getResponsiveWidth(),
+    width: responsiveWidth,
     position: 'relative',
     boxShadow: hover && !reserved ? '0 4px 8px rgba(0,0,0,0.15)' : reserved ? 'inset 0 0 6px rgba(0,0,0,0.1)' : '0 2px 4px rgba(0,0,0,0.1)',
     transform: hover && !reserved ? 'translateY(-2px)' : 'translateY(0)',

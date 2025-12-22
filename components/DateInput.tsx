@@ -1,5 +1,4 @@
-import React from 'react';
-import DatePicker from 'react-datepicker';
+import React, { useEffect, useMemo, useState } from 'react';
 
 type DateInputProps = {
   label?: string;
@@ -22,6 +21,27 @@ const DateInput: React.FC<DateInputProps> = ({
   placeholder = 'Select date',
   disablePastDates = false,
 }) => {
+  const [mounted, setMounted] = useState(false);
+  const [DatePicker, setDatePicker] = useState<null | React.ComponentType<any>>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+    let cancelled = false;
+    (async () => {
+      const mod = await import('react-datepicker');
+      if (!cancelled) setDatePicker(() => (mod as any).default);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [mounted]);
+
+  const inputClassName = useMemo(() => `form-control ${error ? 'border-danger' : ''}`, [error]);
+
   return (
     <div className="mb-3">
       {label && (
@@ -30,16 +50,27 @@ const DateInput: React.FC<DateInputProps> = ({
         </label>
       )}
 
-      <DatePicker
-        selected={value}
-        onChange={onChange}
-        className={`form-control ${error ? 'border-danger' : ''}`}
-        disabled={disabled}
-        placeholderText={placeholder}
-        dateFormat="MMM d, yyyy"
-        isClearable
-        minDate={disablePastDates ? new Date() : undefined}
-      />
+      {mounted && DatePicker ? (
+        <DatePicker
+          selected={value}
+          onChange={onChange}
+          className={inputClassName}
+          disabled={disabled}
+          placeholderText={placeholder}
+          dateFormat="MMM d, yyyy"
+          isClearable
+          minDate={disablePastDates ? new Date() : undefined}
+        />
+      ) : (
+        <input
+          type="text"
+          className={inputClassName}
+          disabled={disabled}
+          placeholder={placeholder}
+          readOnly
+          value=""
+        />
+      )}
 
       {error && <small className="text-danger">This field is required</small>}
     </div>

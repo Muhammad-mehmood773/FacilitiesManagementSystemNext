@@ -7,7 +7,7 @@ type ButtonProps = {
   variant?: 'primary' | 'secondary' | 'danger';
   loading?: boolean;
   onClick?: () => void;
-  icon?: string; // bootstrap icon class e.g. "bi-calendar"
+  icon?: string; 
 };
 
 const Button: React.FC<ButtonProps> = ({

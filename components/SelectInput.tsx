@@ -1,7 +1,4 @@
-"use client";
-
 import React from "react";
-import Select, { SingleValue } from "react-select";
 
 type OptionType = {
   value: string | number;
@@ -18,10 +15,10 @@ type SelectInputProps = {
   disabled?: boolean;
   error?: boolean;
   required?: boolean;
-  onSearch?: (keyword: string) => void;
+  onSearch?: (keyword: string) => void; 
   isLoading?: boolean;
   isClearable?: boolean;
-  showAvatar?: boolean;
+  showAvatar?: boolean; 
 };
 
 const SelectInput: React.FC<SelectInputProps> = ({
@@ -35,11 +32,7 @@ const SelectInput: React.FC<SelectInputProps> = ({
   onSearch,
   isLoading = false,
   isClearable = true,
-  showAvatar = false,
 }) => {
-  const selectedOption =
-    options.find((opt) => opt.value === value) || null;
-
   return (
     <div>
       {label && (
@@ -48,64 +41,40 @@ const SelectInput: React.FC<SelectInputProps> = ({
         </label>
       )}
 
-      <Select
-        options={options}
-        value={selectedOption}
-        onChange={(opt: SingleValue<OptionType>) =>
-          onChange(opt ? opt.value : null)
-        }
-        isDisabled={disabled}
-        isClearable={isClearable}
-        isLoading={isLoading}
-        onInputChange={(input) => {
-          onSearch?.(input);
-          return input;
+      {/* Optional search input (client-side enhancement only) */}
+      {onSearch && (
+        <input
+          type="text"
+          className="form-control mb-1"
+          placeholder="Search..."
+          onChange={(e) => onSearch(e.target.value)}
+        />
+      )}
+
+      <select
+        className={`form-select ${error ? "is-invalid" : ""}`}
+        disabled={disabled || isLoading}
+        value={value ?? ""}
+        onChange={(e) => {
+          const val = e.target.value;
+          onChange(val === "" ? null : isNaN(Number(val)) ? val : Number(val));
         }}
-        formatOptionLabel={(option) =>
-          showAvatar ? (
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              {option.avatar && (
-                <img
-                  src={option.avatar}
-                  alt={option.label}
-                  style={{ width: 30, height: 30, borderRadius: "50%" }}
-                />
-              )}
-              <div>
-                <div>{option.label}</div>
-                {option.departmentName && (
-                  <div style={{ fontSize: "12px", color: "#666" }}>
-                    {option.departmentName}
-                  </div>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div>
-              <div>{option.label}</div>
-              {option.departmentName && (
-                <div style={{ fontSize: "12px", color: "#666" }}>
-                  {option.departmentName}
-                </div>
-              )}
-            </div>
-          )
-        }
-        styles={{
-          control: (base, state) => ({
-            ...base,
-            borderColor: error ? "red" : base.borderColor,
-            boxShadow: state.isFocused
-              ? error
-                ? "0 0 0 1px red"
-                : base.boxShadow
-              : "none",
-            "&:hover": {
-              borderColor: error ? "red" : base.borderColor,
-            },
-          }),
-        }}
-      />
+      >
+        {isClearable && <option value="">-- Select --</option>}
+
+        {options.map((opt) => (
+          <option key={opt.value} value={opt.value}>
+            {opt.label}
+            {opt.departmentName ? ` (${opt.departmentName})` : ""}
+          </option>
+        ))}
+      </select>
+
+      {error && (
+        <div className="invalid-feedback d-block">
+          This field is required
+        </div>
+      )}
     </div>
   );
 };
