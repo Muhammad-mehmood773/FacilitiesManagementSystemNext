@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 
 type DateInputProps = {
   label?: string;
@@ -21,26 +21,24 @@ const DateInput: React.FC<DateInputProps> = ({
   placeholder = 'Select date',
   disablePastDates = false,
 }) => {
-  const [mounted, setMounted] = useState(false);
-  const [DatePicker, setDatePicker] = useState<null | React.ComponentType<any>>(null);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (!mounted) return;
-    let cancelled = false;
-    (async () => {
-      const mod = await import('react-datepicker');
-      if (!cancelled) setDatePicker(() => (mod as any).default);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [mounted]);
-
   const inputClassName = useMemo(() => `form-control ${error ? 'border-danger' : ''}`, [error]);
+
+  const inputValue = useMemo(() => {
+    if (!value) return '';
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const day = String(value.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }, [value]);
+
+  const minValue = useMemo(() => {
+    if (!disablePastDates) return undefined;
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }, [disablePastDates]);
 
   return (
     <div className="mb-3">
@@ -50,27 +48,28 @@ const DateInput: React.FC<DateInputProps> = ({
         </label>
       )}
 
-      {mounted && DatePicker ? (
-        <DatePicker
-          selected={value}
-          onChange={onChange}
-          className={inputClassName}
-          disabled={disabled}
-          placeholderText={placeholder}
-          dateFormat="MMM d, yyyy"
-          isClearable
-          minDate={disablePastDates ? new Date() : undefined}
-        />
-      ) : (
-        <input
-          type="text"
-          className={inputClassName}
-          disabled={disabled}
-          placeholder={placeholder}
-          readOnly
-          value=""
-        />
-      )}
+      <input
+        type="date"
+        className={inputClassName}
+        disabled={disabled}
+        placeholder={placeholder}
+        value={inputValue}
+        min={minValue}
+        onChange={(e) => {
+          const raw = e.target.value;
+          if (!raw) {
+            onChange(null);
+            return;
+          }
+
+          const parsed = new Date(`${raw}T00:00:00`);
+          if (Number.isNaN(parsed.getTime())) {
+            onChange(null);
+            return;
+          }
+          onChange(parsed);
+        }}
+      />
 
       {error && <small className="text-danger">This field is required</small>}
     </div>

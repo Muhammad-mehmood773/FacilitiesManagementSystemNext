@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 
 type TimeInputProps = {
   label?: string;
@@ -21,26 +21,19 @@ const TimeInput: React.FC<TimeInputProps> = ({
   placeholder = 'Select time',
   interval = 30,
 }) => {
-  const [mounted, setMounted] = useState(false);
-  const [DatePicker, setDatePicker] = useState<null | React.ComponentType<any>>(null);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (!mounted) return;
-    let cancelled = false;
-    (async () => {
-      const mod = await import('react-datepicker');
-      if (!cancelled) setDatePicker(() => (mod as any).default);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [mounted]);
-
   const inputClassName = useMemo(() => `form-control ${error ? 'border-danger' : ''}`, [error]);
+
+  const inputValue = useMemo(() => {
+    if (!value) return '';
+    const hh = String(value.getHours()).padStart(2, '0');
+    const mm = String(value.getMinutes()).padStart(2, '0');
+    return `${hh}:${mm}`;
+  }, [value]);
+
+  const stepValue = useMemo(() => {
+    const safeInterval = typeof interval === 'number' && interval > 0 ? interval : 30;
+    return String(safeInterval * 60);
+  }, [interval]);
 
   return (
     <div className="mb-3">
@@ -50,30 +43,34 @@ const TimeInput: React.FC<TimeInputProps> = ({
         </label>
       )}
 
-      {mounted && DatePicker ? (
-        <DatePicker
-          selected={value}
-          onChange={onChange}
-          className={inputClassName}
-          disabled={disabled}
-          placeholderText={placeholder}
-          showTimeSelect
-          showTimeSelectOnly
-          timeIntervals={interval}
-          timeCaption="Time"
-          dateFormat="h:mm aa"
-          isClearable
-        />
-      ) : (
-        <input
-          type="text"
-          className={inputClassName}
-          disabled={disabled}
-          placeholder={placeholder}
-          readOnly
-          value=""
-        />
-      )}
+      <input
+        type="time"
+        className={inputClassName}
+        disabled={disabled}
+        placeholder={placeholder}
+        value={inputValue}
+        step={stepValue}
+        onChange={(e) => {
+          const raw = e.target.value;
+          if (!raw) {
+            onChange(null);
+            return;
+          }
+
+          const [h, m] = raw.split(':');
+          const hours = Number(h);
+          const minutes = Number(m);
+          if (Number.isNaN(hours) || Number.isNaN(minutes)) {
+            onChange(null);
+            return;
+          }
+
+          const base = value ? new Date(value) : new Date();
+          base.setSeconds(0, 0);
+          base.setHours(hours, minutes, 0, 0);
+          onChange(base);
+        }}
+      />
 
       {error && <small className="text-danger">This field is required</small>}
     </div>

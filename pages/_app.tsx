@@ -8,7 +8,6 @@ import '../styles/index.css';
 import '../styles/App.css';
 import '../styles/addSlots.css';
 import '../styles/table.css';
-import 'react-datepicker/dist/react-datepicker.css';
 import 'bootstrap-icons/font/bootstrap-icons.css';
 import 'react-toastify/dist/ReactToastify.css';
 
