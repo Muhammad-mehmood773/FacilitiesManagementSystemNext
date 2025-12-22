@@ -71,11 +71,7 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async (ctx) => 
 
   const startDate = typeof ctx.query.startDate === 'string' ? ctx.query.startDate : '';
   const endDate = typeof ctx.query.endDate === 'string' ? ctx.query.endDate : '';
-
   const employeeId = Number(auth.loginId);
-
-
-
   const requestPayload: PageProps['requestPayload'] = {
     pageNumber,
     pageSize,
@@ -83,12 +79,10 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async (ctx) => 
     startDate,
     endDate,
   };
-
   let sorted: PageProps['history'] = [];
   let totalPages = 1;
 
   try {
-    debugger
     const api = createServerApi(auth.loginId);
     const historyRes = await api.get<SlotHistoryResponse>('FacilitySlot/get-all-facility-slot', {
       params: requestPayload,
@@ -257,21 +251,13 @@ function History({
   };
 
 
-const goToBookSlot = (slot: SlotItem) => {  
-  const prefill = {  
-    slotId: slot.slotId,
-    slotDate: slot.slotDate,
-    startTime: slot.startTime,
-    endTime: slot.endTime,
-    facilityName: slot.facilityName,
-    resourceName: slot.facilityResourceName,
-  };
-
+const goToBookSlot = (slot: SlotItem) => {
   router.push({
     pathname: '/book-slot',
     query: {
-      prefill: encodeURIComponent(JSON.stringify(prefill))
-    }
+      slotId: String(slot.slotId),
+      slotDate: slot.slotDate,
+    },
   });
 };
 

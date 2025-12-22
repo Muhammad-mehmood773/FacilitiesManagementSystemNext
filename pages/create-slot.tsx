@@ -94,6 +94,14 @@ function AddSlot({ facilityOptions }: { facilityOptions: FacilityOption[] }) {
     document.title = 'Create Slot';
   }, []);
 
+  useEffect(() => {
+    if (facility != null && facility !== '') return;
+    const firstValid = facilityOptionsState.find((opt) => opt.value !== '' && opt.value !== 0);
+    if (!firstValid) return;
+    setFacility(firstValid.value);
+    setErrors((prev) => ({ ...prev, facility: false }));
+  }, [facility, facilityOptionsState]);
+
   const handleSubmit = async () => {
     let hasError = false;
 

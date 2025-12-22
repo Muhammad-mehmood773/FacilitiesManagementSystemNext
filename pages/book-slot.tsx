@@ -33,6 +33,7 @@ type PageProps = {
   slots: FacilitySlot[];
   selectedFacilityId: number | null;
   selectedDate: string;
+  prefillSlotId: number | null;
 };
 
 export default function BookSlotPage({
@@ -44,6 +45,7 @@ export default function BookSlotPage({
   slots,
   selectedFacilityId,
   selectedDate,
+  prefillSlotId,
 }: PageProps) {
   return (
     <MainLayout userName={userName} userPhoto={userPhoto} roleId={roleId}>
@@ -53,6 +55,7 @@ export default function BookSlotPage({
         initialSlots={slots}
         initialFacilityId={selectedFacilityId}
         initialDate={selectedDate}
+        initialPrefillSlotId={prefillSlotId}
       />
     </MainLayout>
   );
@@ -81,7 +84,11 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async (ctx) => 
   const now = new Date();
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   const dateRaw = typeof ctx.query.date === 'string' ? ctx.query.date : undefined;
-  const selectedDate = dateRaw || today;
+  const slotDateRaw = typeof ctx.query.slotDate === 'string' ? ctx.query.slotDate : undefined;
+  const selectedDate = slotDateRaw || dateRaw || today;
+
+  const slotIdRaw = typeof ctx.query.slotId === 'string' ? ctx.query.slotId : undefined;
+  const prefillSlotId = slotIdRaw ? Number(slotIdRaw) || null : null;
 
   let tableOptions: OptionType[] = [];
   let slots: FacilitySlot[] = [];
@@ -121,6 +128,7 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async (ctx) => 
       slots,
       selectedFacilityId,
       selectedDate,
+      prefillSlotId,
     },
   };
 };
@@ -131,12 +139,14 @@ function BookSlot({
   initialSlots,
   initialFacilityId,
   initialDate,
+  initialPrefillSlotId,
 }: {
   initialFacilityOptions: OptionType[];
   initialTableOptions: OptionType[];
   initialSlots: FacilitySlot[];
   initialFacilityId: number | null;
   initialDate: string;
+  initialPrefillSlotId: number | null;
 }) {
   const [facility, setFacility] = useState<string | number | null>(null);
 
@@ -154,7 +164,11 @@ function BookSlot({
   const [loadingSlots, setLoadingSlots] = useState(false);
 
   const [bookedSlots, setBookedSlots] = useState<number[]>([]);
-  const [selectedSlotIndex, setSelectedSlotIndex] = useState<number | null>(null);
+  const [selectedSlotIndex, setSelectedSlotIndex] = useState<number | null>(() => {
+    if (initialPrefillSlotId == null) return null;
+    const idx = initialSlots.findIndex((s) => s.slotId === initialPrefillSlotId);
+    return idx !== -1 ? idx : null;
+  });
 
   const { roleId } = useLayoutContext();
   const isAdmin = roleId === 'Super Admin';
@@ -196,6 +210,14 @@ function BookSlot({
       if (!Number.isNaN(d.getTime())) setDate(d);
     }
   }, [initialDate, initialFacilityId, initialTableOptions]);
+
+  useEffect(() => {
+    if (initialPrefillSlotId == null) return;
+    const idx = slots.findIndex((s) => s.slotId === initialPrefillSlotId);
+    if (idx !== -1) {
+      setSelectedSlotIndex(idx);
+    }
+  }, [initialPrefillSlotId, slots]);
 
 
 
