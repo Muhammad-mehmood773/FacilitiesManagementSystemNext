@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import MainLayout from '../layouts/MainLayout';
 import Checkbox from '../components/Checkbox';
 import DateInput from '../components/DateInput';
@@ -164,7 +164,7 @@ function AddSlot({ facilityOptions }: { facilityOptions: FacilityOption[] }) {
 
     const diffMinutes = (endTime.getTime() - startTime.getTime()) / (1000 * 60);
     const totalHours = (diffMinutes / 60).toFixed(2);
-    const totalSlots = Math.round(diffMinutes / 30);
+    const totalSlots = diffMinutes > 0 ? Math.floor(diffMinutes / 30) + 1 : 0;
 
     let diffDays = 0;
     for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
@@ -173,19 +173,52 @@ function AddSlot({ facilityOptions }: { facilityOptions: FacilityOption[] }) {
     }
 
     const totalSlotsAllDays = totalSlots * diffDays;
-    return `${totalHours} hrs | ${totalSlots} slots/day | ${diffDays} days | ${totalSlotsAllDays} total slots ${
-      includeWeekend ? '(Weekends included)' : '(Weekends excluded)'
-    }`;
+    return `${totalHours} hrs | ${totalSlots} slots/day | ${diffDays} days | ${totalSlotsAllDays} total slots ${includeWeekend ? '(Weekends included)' : '(Weekends excluded)'
+      }`;
   };
+
+  const toMinutes = (d: Date) => d.getHours() * 60 + d.getMinutes();
+
+  const minutesToDate = (minutes: number) => {
+    const base = new Date();
+    base.setSeconds(0, 0);
+    base.setHours(0, 0, 0, 0);
+    base.setMinutes(minutes);
+    return base;
+  };
+
+  const formatOptionLabel = (minutes: number) => {
+    const h24 = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    const suffix = h24 >= 12 ? 'PM' : 'AM';
+    const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+    return `${String(h12).padStart(2, '0')}:${String(m).padStart(2, '0')} ${suffix}`;
+  };
+
+  const timeOptions = useMemo(() => {
+    const opts: { label: string; value: number }[] = [];
+    for (let minutes = 0; minutes < 24 * 60; minutes += 30) {
+      opts.push({ label: formatOptionLabel(minutes), value: minutes });
+    }
+    return opts;
+  }, []);
+
+  const startMinutes = useMemo(() => (startTime ? toMinutes(startTime) : null), [startTime]);
+  const endMinutes = useMemo(() => (endTime ? toMinutes(endTime) : null), [endTime]);
+
+  const endTimeOptions = useMemo(() => {
+    if (startMinutes == null) return timeOptions;
+    return timeOptions.filter((o) => o.value > startMinutes);
+  }, [startMinutes, timeOptions]);
 
   return (
     <div className="container-fluid p-4">
       <div className="card premium-card">
         <div className="card-header premium-header d-flex justify-content-between align-items-center">
           <h5 className="card-title m-0 fw-bold">Schedule a Slot</h5>
-          <div>
+          {/* <div>
             <span className="header-meta">{computeSummary()}</span>
-          </div>
+          </div> */}
         </div>
 
         <div className="card-body p-4">
@@ -238,37 +271,71 @@ function AddSlot({ facilityOptions }: { facilityOptions: FacilityOption[] }) {
             </div>
 
             <div className="col-md-6">
-              <TimeInput
+              <SelectInput
                 label="Start Time"
-                value={startTime}
-                onChange={(date) => {
-                  setStartTime(date);
-                  setErrors((prev) => ({ ...prev, startTime: !date }));
-                }}
+                value={startMinutes}
                 required
+                options={timeOptions}
+                onChange={(value) => {
+                  if (value == null || value === '') {
+                    setStartTime(null);
+                    setErrors((prev) => ({ ...prev, startTime: true }));
+                    if (endTime != null) {
+                      setEndTime(null);
+                      setErrors((prev) => ({ ...prev, endTime: true }));
+                    }
+                    return;
+                  }
+
+                  const minutes = typeof value === 'number' ? value : Number(value);
+                  const nextStart = minutesToDate(minutes);
+                  setStartTime(nextStart);
+                  setErrors((prev) => ({ ...prev, startTime: false }));
+
+                  if (endTime && toMinutes(endTime) <= minutes) {
+                    setEndTime(null);
+                    setErrors((prev) => ({ ...prev, endTime: true }));
+                  }
+                }}
                 error={errors.startTime}
-                interval={30}
               />
             </div>
 
             <div className="col-md-6">
-              <TimeInput
+              <SelectInput
                 label="End Time"
-                value={endTime}
-                onChange={(date) => {
-                  setEndTime(date);
-                  setErrors((prev) => ({ ...prev, endTime: !date }));
-                }}
+                value={endMinutes}
                 required
+                options={endTimeOptions}
+                onChange={(value) => {
+                  if (value == null || value === '') {
+                    setEndTime(null);
+                    setErrors((prev) => ({ ...prev, endTime: true }));
+                    return;
+                  }
+
+                  const minutes = typeof value === 'number' ? value : Number(value);
+                  const nextEnd = minutesToDate(minutes);
+                  setEndTime(nextEnd);
+
+                  const invalid = startTime ? minutes <= toMinutes(startTime) : false;
+                  setErrors((prev) => ({ ...prev, endTime: invalid }));
+                }}
                 error={errors.endTime}
-                interval={30}
               />
             </div>
           </div>
         </div>
 
-        <div className="premium-footer text-end">
-          <Button label={loading ? 'Loading...' : 'Create Slots'} variant="primary" loading={loading} onClick={handleSubmit} icon="bi-grid" />
+        <div className="premium-footer d-flex justify-content-between align-items-center">
+          <span className="header-meta">{computeSummary()}</span>
+          <Button
+            label={loading ? 'Loading...' : 'Create Slots'}
+            variant="primary"
+            loading={loading}
+            onClick={handleSubmit}
+            icon="bi-grid"
+          />
         </div>
       </div>
     </div>

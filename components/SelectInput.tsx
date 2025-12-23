@@ -41,7 +41,6 @@ const SelectInput: React.FC<SelectInputProps> = ({
         </label>
       )}
 
-      {/* Optional search input (client-side enhancement only) */}
       {onSearch && (
         <input
           type="text"

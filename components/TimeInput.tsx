@@ -72,7 +72,7 @@ const TimeInput: React.FC<TimeInputProps> = ({
             onChange(base);
           }}
         />
-        <span className="position-absolute top-50 end-0 translate-middle-y pe-2 fms-input-arrow" aria-hidden="true">
+        <span className="position-absolute top-50 end-0 translate-middle-y pe-3 fms-input-arrow" aria-hidden="true">
           ▼
         </span>
       </div>
