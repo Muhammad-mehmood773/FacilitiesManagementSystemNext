@@ -24,6 +24,11 @@ import { getCookieValue } from '../utils/cookies';
 
 type OptionType = { label: string; value: string | number };
 
+type EmployeeOption = OptionType & {
+  avatar?: string;
+  departmentName?: string;
+};
+
 type PageProps = {
   userName: string;
   userPhoto: string;
@@ -175,8 +180,10 @@ function BookSlot({
 
   const [selectedEmployee, setSelectedEmployee] = useState<string | number | null>(null);
 
-  const [employeeOptions, setEmployeeOptions] = useState<OptionType[]>([]);
+  const [employeeOptions, setEmployeeOptions] = useState<EmployeeOption[]>([]);
   const [employeeLoading, setEmployeeLoading] = useState(false);
+  const [employeeSearch, setEmployeeSearch] = useState('');
+  const [employeeDropdownOpen, setEmployeeDropdownOpen] = useState(false);
 
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -268,7 +275,7 @@ function BookSlot({
     FacilityEmployeeService.getEmployeeByKeyword(keyword)
       .then((res) => {
         const employees = res.data?.data || [];
-        const options = employees.map((emp: any) => ({
+        const options: EmployeeOption[] = employees.map((emp: any) => ({
           label: emp.fullName,
           value: emp.employeeId,
           avatar: emp.employeePhoto,
@@ -279,6 +286,11 @@ function BookSlot({
       .catch((err) => console.error('Employee search error:', err))
       .finally(() => setEmployeeLoading(false));
   };
+
+  const selectedEmployeeOption = useMemo(() => {
+    if (selectedEmployee == null) return null;
+    return employeeOptions.find((o) => o.value === selectedEmployee) || null;
+  }, [employeeOptions, selectedEmployee]);
 
   useEffect(() => {
     if (prefill) {
@@ -419,22 +431,118 @@ function BookSlot({
               </div>
               {isAdmin && (
                 <div className="mb-3">
-                  <SelectInput
-                    label="Select Employee"
-                    value={selectedEmployee}
-                    required
-                    options={employeeOptions}
-                    onChange={(val) => {
-                      setSelectedEmployee(val);
-                      setErrors((prev) => ({ ...prev, selectedEmployee: !val }));
-                    }}
-                    onSearch={handleEmployeeSearch}
-                    isLoading={employeeLoading}
-                    isClearable={true}
-                    disabled={false}
-                    error={errors.selectedEmployee}
-                    showAvatar={true}
-                  />
+                  <label className="form-label">
+                    Select Employee <span className="text-danger">*</span>
+                  </label>
+
+                  <div className="position-relative mb-2">
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="Search..."
+                      value={employeeSearch}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setEmployeeSearch(val);
+                        if (val.length >= 2) {
+                          setEmployeeDropdownOpen(true);
+                          handleEmployeeSearch(val);
+                        } else {
+                          setEmployeeDropdownOpen(false);
+                          setEmployeeOptions([]);
+                        }
+                      }}
+                      onFocus={() => {
+                        if (employeeSearch.length >= 2 && employeeOptions.length > 0) setEmployeeDropdownOpen(true);
+                      }}
+                    />
+
+                    {(employeeSearch || selectedEmployee != null) && (
+                      <button
+                        type="button"
+                        className="btn btn-sm position-absolute top-50 end-0 translate-middle-y me-2"
+                        onClick={() => {
+                          setEmployeeSearch('');
+                          setEmployeeOptions([]);
+                          setEmployeeDropdownOpen(false);
+                          setSelectedEmployee(null);
+                          setErrors((prev) => ({ ...prev, selectedEmployee: true }));
+                        }}
+                        aria-label="Clear employee search"
+                        style={{ lineHeight: 1 }}
+                      >
+                        ✕
+                      </button>
+                    )}
+
+                    {employeeDropdownOpen && (
+                      <div
+                        className="list-group position-absolute w-100"
+                        style={{ zIndex: 1050, maxHeight: '220px', overflowY: 'auto' }}
+                      >
+                        {employeeLoading && <div className="list-group-item text-muted">Loading...</div>}
+                        {!employeeLoading && employeeOptions.length === 0 && (
+                          <div className="list-group-item text-muted">No results</div>
+                        )}
+                        {!employeeLoading &&
+                          employeeOptions.map((opt) => (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              className="list-group-item list-group-item-action d-flex align-items-center"
+                              onClick={() => {
+                                setSelectedEmployee(opt.value);
+                                setErrors((prev) => ({ ...prev, selectedEmployee: !opt.value }));
+                                setEmployeeSearch('');
+                                setEmployeeDropdownOpen(false);
+                              }}
+                            >
+                              {opt.avatar ? (
+                                <img
+                                  src={opt.avatar}
+                                  alt={opt.label}
+                                  className="rounded-circle"
+                                  style={{ width: '32px', height: '32px', objectFit: 'cover', marginRight: '10px' }}
+                                />
+                              ) : null}
+                              <span>
+                                {opt.label}
+                                {opt.departmentName ? ` (${opt.departmentName})` : ''}
+                              </span>
+                            </button>
+                          ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="position-relative">
+                    {selectedEmployeeOption?.avatar ? (
+                      <img
+                        src={selectedEmployeeOption.avatar}
+                        alt={selectedEmployeeOption.label}
+                        className="position-absolute top-50 translate-middle-y rounded-circle"
+                        style={{ left: '10px', width: '32px', height: '32px', objectFit: 'cover', pointerEvents: 'none' }}
+                      />
+                    ) : null}
+
+                    <button
+                      type="button"
+                      className={`form-select text-start ${errors.selectedEmployee ? 'is-invalid' : ''}`}
+                      onClick={() => {
+                        setEmployeeDropdownOpen((v) => !v);
+                      }}
+                      style={{ paddingLeft: selectedEmployeeOption?.avatar ? '52px' : undefined }}
+                    >
+                      {selectedEmployeeOption ? (
+                        <span>
+                          {selectedEmployeeOption.label}
+                          {selectedEmployeeOption.departmentName ? ` (${selectedEmployeeOption.departmentName})` : ''}
+                        </span>
+                      ) : (
+                        <span className="text-muted">-- Select --</span>
+                      )}
+                    </button>
+                  </div>
                   {errors.selectedEmployee && <small className="text-danger">Employee is required</small>}
                 </div>
               )}
